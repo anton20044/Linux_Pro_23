@@ -1,0 +1,99 @@
+---
+- name: update cache
+  apt:
+    update_cache=yes cache_valid_time=3600
+  tags:
+    - openvpn
+
+- name: install application
+  ansible.builtin.apt:
+    pkg:
+    - openvpn
+    - iperf3
+    - selinux-utils
+    - policycoreutils
+    - selinux-basics
+    - sshpass
+  tags:
+    - openvpn
+
+- name: disable SELinux
+  replace:
+    path: "/etc/selinux/config"
+    regexp: 'SELINUX=permissive'
+    replace: 'SELINUX=disable'
+  tags:
+    - openvpn
+
+- name: generate secret key
+  ansible.builtin.shell: openvpn --genkey secret /etc/openvpn/static.key
+  when: ansible_hostname == 'server'
+  tags:
+    - openvpn
+
+- name: set permission file for vagrant
+  ansible.builtin.file:
+    path: /etc/openvpn/static.key
+    owner: vagrant
+    group: vagrant
+  tags:
+    - openvpn
+  when: ansible_hostname == 'server'
+
+- name: copy secret key
+  ansible.builtin.shell:  sshpass -p 'vagrant' scp -r -o StrictHostKeyChecking=no vagrant@{{ hostvars["server"]["ansible_host"]  }}:/etc/openvpn/static.key /etc/openvpn/static.key
+  when: ansible_hostname == 'client'
+  tags:
+    - openvpn
+
+- name: set permission file for root
+  ansible.builtin.file:
+    path: /etc/openvpn/static.key
+    owner: root
+    group: root
+  when: ansible_hostname == 'server'
+  tags:
+    - openvpn
+
+- name: set up forward packages on servers
+  sysctl:
+    name: net.ipv4.conf.all.forwarding
+    value: '1'
+    state: present
+  when: ansible_hostname == 'server'
+  tags:
+    - openvpn
+
+- name: copy config openvpn server
+  ansible.builtin.template:
+    src: server_conf
+    dest: /etc/openvpn/server.conf
+  when: ansible_hostname == 'server'
+  tags:
+    - openvpn
+    - change_type
+
+- name: copy config openvpn client
+  ansible.builtin.template:
+    src: client_conf
+    dest: /etc/openvpn/server.conf
+  when: ansible_hostname == 'client'
+  tags:
+    - openvpn
+    - change_type
+
+- name: copy openvpn unit
+  ansible.builtin.template:
+    src: openvpn_unit
+    dest: /etc/systemd/system/openvpn@.service
+  tags:
+    - openvpn
+
+- name: restart openvpn
+  service:
+    name: openvpn@server
+    state: restarted
+    enabled: true
+  tags:
+    - openvpn
+    - change_type

@@ -1,0 +1,5 @@
+openvpn_type_int: tap
+openvpn_net_server: 10.10.10.1 255.255.255.0
+openvpn_server_ip: 192.168.57.20
+openvpn_client_addr: 10.10.10.2 255.255.255.0
+openvpn_route: 192.168.57.0 255.255.255.0
